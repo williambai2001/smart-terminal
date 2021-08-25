@@ -1,0 +1,172 @@
+#!/usr/bin/env node
+const _ = require('underscore');
+const fs = require('fs');
+const path = require('path');
+const yaml = require('yaml');
+const program = require('commander');
+const spawn = require('child_process').spawn;
+
+const terminalService = require('../service/terminalService');
+
+//** 默认配置文件
+const config_file = path.join(__dirname,'..','.env');
+if(!fs.existsSync(config_file)){
+	fs.writeFileSync(config_file,fs.readFileSync(path.join(__dirname,'..','config.env.sample'),'utf8'), 'utf8');
+}
+//** 配置文件存入process.env中
+const configed = require('dotenv').config();
+
+program
+	.version('1.0.0')
+	.description('下挂终端数据库管理')
+	.option('-v,--verbose','输出详细信息')
+	.option('-s,--sync','是否同步执行，同步执行会较慢');
+
+//** 编辑配置文件 ./data/config.yaml
+program
+	.command('edit-config')
+	.description('编辑配置文件，参考config.env.sample')
+	.action(async (options)=>{
+		await terminalService.editConfig(config_file);
+	});
+
+//** 创建sharding多表
+program
+	.command('init')
+	.description('创建下挂终端数据库上下线历史记录，分区多表')
+	.action(async function(options){
+		options = _.extend(program.opts(),options);
+		if(options.verbose) console.debug('命令行参数',': ',options);
+		console.time();
+		// if(_.isUndefined(options.table)){
+		// 	console.log('缺少参数：--table');
+		// 	return this.help();
+		// }
+		let result;
+		result = await terminalService.createShardingTables(options);
+		result && console.log(result);
+		console.timeEnd();
+	});
+
+//** 获取分区表信息
+program
+	.command('get-partitions')
+	.description('获取分区表名称')
+	.option('-d,--database <name>','数据库名称')
+	.option('-t,--table <name>','表名称')
+	.action(async (options)=>{
+		options = _.extend(program.opts(),options);
+		if(options.verbose) console.log(options);
+		options.database = options.database || process.env.DB_DATABASE;
+		options.table = options.table || process.env.TABLE_TERMINAL_PREFIX + '0';
+		console.time();
+		let result;
+		result = await terminalService.getTablePartitions(options.database,options.table,options);
+		result && console.table(result);
+		console.timeEnd();
+	});
+
+//** 更新分区表信息
+program
+	.command('add-partitions')
+	.description('新增和更新分区表信息')
+	.option('-a,--auto','自动新增未来七天的分区表')
+	.action(async (options)=>{
+		options = _.extend(program.opts(),options);
+		if(options.verbose) console.log(options);
+		console.time();
+		let result;
+		if(options.auto){
+			result = await terminalService.updateTablePartition(options);
+		}else{
+			return program.help();
+		}
+		result && console.log(result);
+		console.timeEnd();
+	});
+
+
+//** 更改表名
+program
+	.command('rename')
+	.description('(Depreciated)将活动分区多表名称变更为备份离线分区多表名称')
+	.action(async function(options){
+		options = _.extend(program.opts(),options);
+		if(options.verbose) console.debug('命令行参数',': ',options);
+		console.time();
+		let result;
+		result = await terminalService.renameShardingTables(options);
+		result && console.log(result);
+		console.timeEnd();
+	});
+
+
+//** 获取上次备份的结束点
+program
+	.command('get-lastbackupts')
+	.description('获取上次备份的结束时间点，用于增量备份使用(在/backup目录下找)')
+	.option('-d,--dir <dir_name>','上次备份的目录名称')
+	.action(async function(options){
+		options = _.extend(program.opts(),options);
+		if(options.verbose) console.debug('命令行参数',': ',options);
+		if(!options.dir){
+			return program.help();
+		}
+		console.time();
+		let result;
+		result = await terminalService.getLastbackupts(options);
+		result && console.log(result);
+		console.timeEnd();
+	});
+
+
+//** 备份库
+program
+	.command('backup <snapshot|increment>')
+	.description('备份库，分全量快照备份和增量备份')
+	.option('-d,--dir <dir_name>','备份目录名称')
+	.option('-b,--lastbackupts <point>','增量备份指定起点')
+	.option('-l,--logfile <filename>','日志文件')
+	.action(async function(action,options){
+		options = _.extend(program.opts(),options);
+		if(options.verbose) console.debug('命令行参数',': ',options);
+		let interval = setInterval(()=>{
+			process.stdout.write('.');
+		},1000);
+		console.time();
+		let result;
+		if(/snapshot/i.test(action)){
+			result = await terminalService.backupSnapshot(options);
+		}else if(/increment/.test(action) && options.lastbackupts){
+			result = await terminalService.backupIncrement(options);
+		}else{
+			return program.help();
+		}
+		await clearInterval(interval);
+		result && console.log(result);
+		console.timeEnd();
+	});
+
+//** 移除旧表数据，释放磁盘空间
+program
+	.command('drop-partition')
+	.description('移除已过期分区多表数据，释放磁盘空间')
+	.option('-a,--auto','根据保留分区最大天数设置，自动移除过期分区')
+	.option('-p,--partition <partition>','移除指定分区')
+	.action(async function(options){
+		options = _.extend(program.opts(),options);
+		if(options.verbose) console.debug('命令行参数',': ',options);
+		console.time();
+		let result;
+		if(options.auto){
+			result = await terminalService.dropTablePartitonsAuto(options);
+		}else if(options.partition){
+			result = await terminalService.dropTablePartitions(options.partition,options);
+		}else{
+			return program.help();
+		}
+		result && console.log(result);
+		console.timeEnd();
+	});
+
+program.parse(process.argv);

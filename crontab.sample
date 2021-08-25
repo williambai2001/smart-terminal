@@ -1,0 +1,11 @@
+# 每天01:00执行一次partition检查和更新
+
+0 1 * * * * /home/williambai/sdn_projects/smart-terminal/bin/smart terminal db add-partitions --auto
+
+# 每天03:00执行一次移除过期partition操作
+
+0 3 * * * * /home/williambai/sdn_projects/smart-terminal/bin/smart terminal db drop-partition --auto
+
+# 每周一04:00执行一次备份操作(不推荐)
+
+#0 0 4 * * 1 /home/williambai/sdn_projects/smart-terminal/bin/smart terminal db backup snapshot

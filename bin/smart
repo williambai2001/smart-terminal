@@ -1,0 +1,9 @@
+#!/usr/bin/env node
+
+const program = require('commander');
+
+program
+	.version('1.0.0')
+	.description('smart管理')
+	.command('terminal <action>','下挂终端管理')
+	.parse(process.argv);
