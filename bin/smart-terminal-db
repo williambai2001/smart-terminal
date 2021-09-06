@@ -14,7 +14,7 @@ if(!fs.existsSync(config_file)){
 	fs.writeFileSync(config_file,fs.readFileSync(path.join(__dirname,'..','config.env.sample'),'utf8'), 'utf8');
 }
 //** 配置文件存入process.env中
-const configed = require('dotenv').config();
+const configed = require('dotenv').config({path:config_file});
 
 program
 	.version('1.0.0')

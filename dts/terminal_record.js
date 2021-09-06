@@ -21,7 +21,7 @@ terminalRecord.createTable = (database,table)=>{
 	KEY select_index (loid,mac),
 	KEY order_index (time,create_time,update_time)
 	)ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin COMMENT="下挂终端上下线记录表"
-	PARTITION BY RANGE(create_time)(PARTITION p ${YYMMDD} VALUES LESS THAN(${timestamp}))`;
+	PARTITION BY RANGE(create_time)(PARTITION p ${YYMMDD} VALUES LESS THAN(${timestamp}))`.replace(/[\t|\n]/g,'');
 	// let today = moment().add(0,'day');
 	// let sql = ['CREATE TABLE',
 	// 		'`' + database + '`.`' + table + '`',
